@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#e63946" />
+  <meta name="description" content="ML-powered Tesla stock price prediction platform with candlestick and line charts." />
+  <title>Tesla StockAI — ML Prediction Platform</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js 3.x + luxon adapter + financial plugin for candlestick -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+
+  <link rel="stylesheet" href="/static/styles.css?v=3" />
+</head>
+<body>
+
+<!-- ── INSTALL BANNER ────────────────────────────────────────────── -->
+<div id="install-banner" class="install-banner hidden">
+  <span>📱 Install StockAI on your device</span>
+  <button id="btn-install" class="btn-install">Install</button>
+  <button id="btn-dismiss" class="btn-dismiss">✕</button>
+</div>
+
+<!-- ── SIDEBAR ───────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">📈</span>
+    <span class="logo-text">StockAI</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-tab="dashboard" id="nav-dashboard">
+      <span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" data-tab="predict" id="nav-predict">
+      <span class="nav-icon">🔮</span><span class="nav-label">Predict</span>
+    </a>
+    <a href="#" class="nav-item" data-tab="forecast" id="nav-forecast">
+      <span class="nav-icon">🚀</span><span class="nav-label">Forecast</span>
+    </a>
+    <a href="#" class="nav-item" data-tab="model" id="nav-model">
+      <span class="nav-icon">🧠</span><span class="nav-label">Model Stats</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-text" id="status-text">Connecting…</span>
+  </div>
+</aside>
+
+<!-- ── MOBILE HAMBURGER ──────────────────────────────────────────── -->
+<button class="hamburger" id="hamburger" aria-label="Menu">☰</button>
+
+<!-- ── MAIN CONTENT ──────────────────────────────────────────────── -->
+<main class="main-content">
+
+  <!-- HEADER -->
+  <header class="top-header">
+    <div class="header-left">
+      <h1 class="header-title">Tesla Stock <span class="accent-text">AI Prediction</span></h1>
+      <p class="header-sub">Powered by Random Forest + XGBoost Ensemble</p>
+    </div>
+    <div class="header-right">
+      <div class="live-price-card">
+        <div class="live-label">TSLA LAST CLOSE</div>
+        <div class="live-price" id="live-price">—</div>
+        <div class="live-change" id="live-change">—</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: DASHBOARD  (merged with History)
+  ════════════════════════════════════════════════════════ -->
+  <section class="tab-content active" id="tab-dashboard">
+
+    <!-- Range Controls -->
+    <div class="range-bar glass-card">
+      <div class="range-bar-left">
+        <span class="range-title">TSLA Historical Data</span>
+        <span class="range-label-badge" id="dash-range-label"></span>
+      </div>
+      <div class="range-group">
+        <button class="range-btn" data-days="30"   onclick="setDashRange(30,   this)">1M</button>
+        <button class="range-btn active" data-days="90" onclick="setDashRange(90, this)">3M</button>
+        <button class="range-btn" data-days="180"  onclick="setDashRange(180,  this)">6M</button>
+        <button class="range-btn" data-days="365"  onclick="setDashRange(365,  this)">1Y</button>
+        <button class="range-btn" data-days="1825" onclick="setDashRange(1825, this)">5Y</button>
+        <button class="range-btn" data-days="0"    onclick="setDashRange(0,    this)">All</button>
+      </div>
+    </div>
+
+    <!-- Candlestick Chart Card -->
+    <div class="glass-card chart-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <span class="chart-type-badge candle-badge">🕯️ Candlestick</span>
+          <span class="chart-subtitle" id="candle-subtitle"></span>
+        </div>
+        <div class="chart-legend-row">
+          <span class="legend-item up">▲ Bullish</span>
+          <span class="legend-item down">▼ Bearish</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="dashCandleChart"></canvas>
+        <div class="chart-loader" id="candle-loader">
+          <div class="spinner"></div><span>Loading candlestick data…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line Chart Card -->
+    <div class="glass-card chart-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <span class="chart-type-badge line-badge">📈 Line Chart</span>
+          <span class="chart-subtitle" id="line-subtitle"></span>
+        </div>
+        <div class="chart-legend-row">
+          <span class="legend-item" style="color:#fff">── Close</span>
+          <span class="legend-item" style="color:#e63946">── MA 7</span>
+          <span class="legend-item" style="color:#ff6b6b">·· MA 30</span>
+          <span class="legend-item" style="color:#888">·· MA 90</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="dashLineChart"></canvas>
+        <div class="chart-loader" id="line-loader">
+          <div class="spinner"></div><span>Loading line chart…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="glass-card">
+      <div class="table-header-row">
+        <h3 class="section-title">Stock Data Table</h3>
+        <input type="text" id="table-search" class="search-input" placeholder="🔍 Search date or price…" oninput="filterTable()" />
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="history-table">
+          <thead>
+            <tr>
+              <th onclick="sortTable('date')"  class="sortable">Date ↕</th>
+              <th onclick="sortTable('open')"  class="sortable">Open ↕</th>
+              <th onclick="sortTable('high')"  class="sortable">High ↕</th>
+              <th onclick="sortTable('low')"   class="sortable">Low ↕</th>
+              <th onclick="sortTable('close')" class="sortable">Close ↕</th>
+              <th onclick="sortTable('volume')"class="sortable">Volume ↕</th>
+              <th>MA 7</th>
+              <th>MA 30</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody"></tbody>
+        </table>
+      </div>
+      <div class="table-pagination">
+        <button class="page-btn" id="btn-prev" onclick="changePage(-1)">‹ Prev</button>
+        <span id="page-info">Page 1</span>
+        <button class="page-btn" id="btn-next" onclick="changePage(1)">Next ›</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: PREDICT
+  ════════════════════════════════════════════════════════ -->
+  <section class="tab-content" id="tab-predict">
+    <div class="predict-layout">
+
+      <!-- Form -->
+      <div class="glass-card predict-form-card">
+        <h2 class="section-title">🔮 Predict Next Closing Price</h2>
+        <p class="section-sub">Enter today's OHLCV data to predict tomorrow's closing price.</p>
+        <form id="predict-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="inp-open">Open Price ($)</label>
+              <input type="number" id="inp-open"   class="form-input" step="0.01" placeholder="e.g. 450.00" required />
+            </div>
+            <div class="form-group">
+              <label for="inp-high">High Price ($)</label>
+              <input type="number" id="inp-high"   class="form-input" step="0.01" placeholder="e.g. 465.00" required />
+            </div>
+            <div class="form-group">
+              <label for="inp-low">Low Price ($)</label>
+              <input type="number" id="inp-low"    class="form-input" step="0.01" placeholder="e.g. 445.00" required />
+            </div>
+            <div class="form-group">
+              <label for="inp-close">Close Price ($)</label>
+              <input type="number" id="inp-close"  class="form-input" step="0.01" placeholder="e.g. 459.00" required />
+            </div>
+            <div class="form-group form-full">
+              <label for="inp-volume">Volume</label>
+              <input type="number" id="inp-volume" class="form-input" placeholder="e.g. 65000000" required />
+            </div>
+          </div>
+          <button type="submit" class="btn-predict" id="btn-predict-submit">
+            <span id="btn-predict-text">🔮 Predict Price</span>
+            <span id="btn-predict-spinner" class="btn-spinner hidden"></span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Result -->
+      <div class="predict-results-col">
+        <div class="glass-card predict-result-card">
+          <div class="result-header">Prediction Result</div>
+          <div class="result-price" id="result-price">—</div>
+          <div class="result-ci"   id="result-ci">Enter values and click Predict</div>
+          <div class="model-breakdown">
+            <div class="breakdown-item">
+              <span class="breakdown-label">Random Forest</span>
+              <span class="breakdown-val" id="rf-val">—</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">XGBoost</span>
+              <span class="breakdown-val" id="xgb-val">—</span>
+            </div>
+            <div class="breakdown-item highlight">
+              <span class="breakdown-label">Ensemble (Final)</span>
+              <span class="breakdown-val" id="ens-val">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prediction Line Chart (ONLY line, no candlestick) -->
+        <div class="glass-card">
+          <div class="chart-card-header">
+            <div class="chart-card-title">
+              <span class="chart-type-badge line-badge">📈 Predicted vs Recent History</span>
+            </div>
+            <div class="chart-legend-row">
+              <span class="legend-item" style="color:#fff">── Actual</span>
+              <span class="legend-item" style="color:#e63946">── Predicted</span>
+              <span class="legend-item ci-band">▓ 95% CI</span>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="predictChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: FORECAST
+  ════════════════════════════════════════════════════════ -->
+  <section class="tab-content" id="tab-forecast">
+    <div class="glass-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title">
+          <span class="chart-type-badge line-badge">🚀 Future Price Forecast</span>
+          <span class="chart-subtitle" id="fc-subtitle"></span>
+        </div>
+        <div class="range-group">
+          <button class="range-btn active" id="btn-fc-7"  onclick="setForecastHorizon(7)">7D</button>
+          <button class="range-btn"        id="btn-fc-30" onclick="setForecastHorizon(30)">30D</button>
+          <button class="range-btn"        id="btn-fc-90" onclick="setForecastHorizon(90)">90D</button>
+        </div>
+      </div>
+      <div class="chart-wrap large">
+        <canvas id="forecastChart"></canvas>
+        <div class="chart-loader" id="forecast-loader">
+          <div class="spinner"></div><span>Loading forecast…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card" style="margin-top:20px">
+      <h3 class="section-title">Forecast Summary</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="forecast-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Day #</th>
+              <th>Predicted</th>
+              <th>Lower 95%</th>
+              <th>Upper 95%</th>
+              <th>Change vs Last</th>
+            </tr>
+          </thead>
+          <tbody id="forecast-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: MODEL STATS
+  ════════════════════════════════════════════════════════ -->
+  <section class="tab-content" id="tab-model">
+    <div class="model-grid">
+
+      <div class="glass-card">
+        <h2 class="section-title">🧠 Model Architecture</h2>
+        <div class="arch-diagram">
+          <div class="arch-node node-data">📂 CSV Dataset<br/><small>3,902 rows · 2010–2025</small></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-node node-feat">⚙️ Feature Engineering<br/><small>52 features: Lags, RSI, MACD, Bollinger</small></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-split">
+            <div class="arch-node node-model">🌲 Random Forest<br/><small>300 trees</small></div>
+            <div class="arch-node node-model">⚡ XGBoost<br/><small>500 estimators</small></div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-node node-meta">🔗 Ridge Meta-Learner<br/><small>Ensemble blend</small></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-node node-out">🎯 Price Prediction</div>
+        </div>
+      </div>
+
+      <div class="glass-card">
+        <h2 class="section-title">📈 Performance Metrics</h2>
+        <div class="metrics-grid">
+          <div class="metric-row"><span class="metric-name">Training MAE</span><span class="metric-chip" id="m-train-mae">—</span></div>
+          <div class="metric-row"><span class="metric-name">Training RMSE</span><span class="metric-chip" id="m-train-rmse">—</span></div>
+          <div class="metric-row"><span class="metric-name">Validation R²</span><span class="metric-chip" id="m-val-r2">—</span></div>
+          <div class="metric-row"><span class="metric-name">Test MAE</span><span class="metric-chip" id="m-test-mae">—</span></div>
+          <div class="metric-row"><span class="metric-name">Test RMSE</span><span class="metric-chip" id="m-test-rmse">—</span></div>
+          <div class="metric-row"><span class="metric-name">Test R²</span><span class="metric-chip" id="m-test-r2">—</span></div>
+          <div class="metric-row"><span class="metric-name">Test MAPE (%)</span><span class="metric-chip" id="m-test-mape">—</span></div>
+          <div class="metric-row"><span class="metric-name">Full Dataset R²</span><span class="metric-chip" id="m-full-r2">—</span></div>
+        </div>
+      </div>
+
+      <div class="glass-card">
+        <h2 class="section-title">ℹ️ Model Info</h2>
+        <div class="info-rows">
+          <div class="info-row"><span>Type</span><span id="inf-type">—</span></div>
+          <div class="info-row"><span>Features</span><span id="inf-features">—</span></div>
+          <div class="info-row"><span>Train Size</span><span id="inf-train">—</span></div>
+          <div class="info-row"><span>Validation Size</span><span id="inf-val">—</span></div>
+          <div class="info-row"><span>Test Size</span><span id="inf-test">—</span></div>
+          <div class="info-row"><span>Train Range</span><span id="inf-train-range">—</span></div>
+          <div class="info-row"><span>Test Range</span><span id="inf-test-range">—</span></div>
+        </div>
+      </div>
+
+      <div class="glass-card full-width">
+        <div class="chart-card-header">
+          <span class="chart-type-badge line-badge">🎯 Actual vs Predicted — Test Set</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="avpChart"></canvas>
+          <div class="chart-loader" id="avp-loader">
+            <div class="spinner"></div><span>Loading test predictions…</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<script src="/static/app.js?v=3"></script>
+</body>
+</html>
